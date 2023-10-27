@@ -119,14 +119,15 @@ def main():
                 ending = Message()
                 ending.write('end', "")
                 ending.send(client)
-                pygame.exit()
                 sys.exit()
             if event.type == pygame.KEYDOWN:
                 guess += event.unicode.upper()
                 if event.key == K_RETURN and win == True:
                     main()
+                    break
                 if event.key == K_RETURN and turns == 6:
                     main()
+                    break
                 if event.key == pygame.K_BACKSPACE:
                     guess = guess[:-1]
                 if len(guess) > 5 or not event.unicode.isalpha():
@@ -173,6 +174,7 @@ def main():
             pygame.display.update()
             wait()
             main()
+            break
 
         pygame.display.update()
         clock.tick(FPS)
