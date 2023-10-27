@@ -20,6 +20,7 @@ bigFont = pygame.font.SysFont("Helvetica neue", 80)
 youWin = bigFont.render("You Win!", True, green)
 youLose = bigFont.render("You Lose!", True, red)
 playAgain = bigFont.render("Play Again?", True, lightGreen)
+Answer = bigFont.render("The answer is:", True, white)
 
 class Message:
 
@@ -79,6 +80,15 @@ def draw(mask, guess, turns, window):
     else:
         return False
 
+def wait():
+    while True:
+        for event in pygame.event.get():
+            if event.type == QUIT:
+                pygame.quit()
+                sys.exit()
+            if event.type == KEYDOWN and event.key == K_RETURN:
+                return
+
 def main():
     st = Message()
     st.write('start', "")
@@ -90,14 +100,14 @@ def main():
     if rec.type != 'conn_acc':
         print("unable to establish connection")
         return
-    height = 600
+    height = 900
     width = 570
     FPS = 30
     clock = pygame.time.Clock()
     window = pygame.display.set_mode((width, height))
     window.fill(black)
     for x in range(0,5):
-        for y in range(0,5):
+        for y in range(0,6):
             pygame.draw.rect(window, grey, pygame.Rect(60 + (x * SPACING), 50 + (y * SPACING), 50, 50), 2)
     pygame.display.set_caption("Wordle - Redes")
     turns = 0
@@ -106,6 +116,9 @@ def main():
     while True:
         for event in pygame.event.get():
             if event.type == QUIT:
+                ending = Message()
+                ending.write('end', "")
+                ending.send(client)
                 pygame.exit()
                 sys.exit()
             if event.type == pygame.KEYDOWN:
@@ -116,8 +129,7 @@ def main():
                     main()
                 if event.key == pygame.K_BACKSPACE:
                     guess = guess[:-1]
-                    guess = guess[:-1]
-                if len(guess) > 5 or not event.unicode.upper().isalpha():
+                if len(guess) > 5 or not event.unicode.isalpha():
                     guess = guess[:-1]
                 if event.key == K_RETURN and len(guess) > 4:
                     toSend = Message()
@@ -130,25 +142,38 @@ def main():
                     print('msg content: ' + msg.content)
                     if msg.type == 'invalid_guess':
                         guess = ""
-                        window.fill(black, (0, 500, 500, 200))
-                        continue   
-                    win = draw(msg.content, guess, turns, window)
-                    turns += 1
+                        window.fill(black, (0, 650, 500, 200))
+                        continue
+                    turns = int(msg.content[-1])
+                    msg.content = msg.content[:-1]
+                    win = draw(msg.content, guess, turns - 1, window)
+                    print(turns)
                     guess = ""
-                    window.fill(black, (0, 500, 500, 200))
-        window.fill(black, (0, 500, 500, 200))
+                    window.fill(black, (0, 650, 500, 200))
+        window.fill(black, (0, 650, 500, 200))
         renderGuess = font.render(guess, True, grey)
-        window.blit(renderGuess, (240, 530))
+        window.blit(renderGuess, (240, 680))
 
         if win == True:
-            pygame.draw.rect(window, white, pygame.Rect(60, 50, 450, 450))
-            window.blit(youWin, (115, 200))
-            window.blit(playAgain, (85, 300))
+            #pygame.draw.rect(window, white, pygame.Rect(60, 50, 450, 450))
+            window.blit(youWin, (150, 200))
+            window.blit(playAgain, (120, 300))
 
         if turns == 6 and win != True:
-            pygame.draw.rect(window, white, pygame.Rect(60, 50, 450, 450))
-            window.blit(youLose, (115, 200))
-            window.blit(playAgain, (85, 300))
+            #pygame.draw.rect(window, white, pygame.Rect(60, 50, 450, 450))
+            getAns = Message()
+            getAns.write('lost', "")
+            getAns.send(client)
+            Ans = Message()
+            Ans.read(client)
+            window.blit(youLose, (150, 200))
+            window.blit(playAgain, (120, 300))
+            window.blit(Answer, (70, 650))
+            window.blit(bigFont.render(Ans.content, True, white), (200, 720))
+            pygame.display.update()
+            wait()
+            main()
+
         pygame.display.update()
         clock.tick(FPS)
 
