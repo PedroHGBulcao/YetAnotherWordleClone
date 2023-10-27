@@ -3,7 +3,28 @@ import asyncio
 import random
 import json
 import sys
+import tkinter as tk
+from tkinter import ttk
 
+class Client:
+
+    def __init__(self, client, address):
+        self.address = address
+        self.answer = None
+        self.guesses = []
+        self.client = client
+        AddrToClient[address] = client
+
+    def append(self, guess):
+        self.guesses.append(guess)
+
+    def gen_word(self):
+        self.answer = random.choice(answers)
+        self.guesses = []
+
+    def close(self):
+        AddrToClient.pop(self.address)
+        self.client.close()
 
 class Message:
 
@@ -41,15 +62,16 @@ class Message:
         await loop.sock_sendall(client, self.encoded_content)
 
 
-async def handle_guess(addr, guess):
-    ans = answer[addr]
+async def handle_guess(client, guess):
+    ans = client.answer
     msg = Message()
     guess = guess.lower()
     print(guess)
     if (len(ans) != 5) or not (guess.isalpha()) or not (guess in words):
-        msg.write("invalid_guess", "")
+        msg.write("invalid_guess", str(len(client.guesses)))
         return msg
-    mask = ["0"] *5
+    client.append(guess)
+    mask = ["0"] * 5
     cnt_ans, cnt_guess = dict(), dict()
     for i in range(5):
         cnt_ans[ans[i]] = cnt_ans.get(ans[i], 0) + 1
@@ -62,23 +84,26 @@ async def handle_guess(addr, guess):
             if cnt_guess.get(guess[i], 0) < cnt_ans.get(guess[i], 0):
                 mask[i] = "2"
             cnt_guess[guess[i]] = cnt_guess.get(guess[i], 0) + 1
-    mask = "".join(mask)
+    mask = "".join(mask) + str(len(client.guesses))
     msg.write("valid_guess", mask)
     return msg
 
 
-async def start_game(addr):
-    answer[addr] = random.choice(answers)
-    print(answer[addr])
+async def start_game(client):
+    client.gen_word()
+    print(client.answer)
     msg = Message()
     msg.write("conn_acc", "")
     return msg
 
-async def end_game(addr):
-    ans = answer.pop(addr)
+async def end_game(client):
+    client.close()
+
+async def show_ans(client):
     msg = Message()
-    msg.write("game_ended", ans)
+    msg.write("lost", client.answer)
     return msg
+
 
 async def run_server():
 
@@ -95,30 +120,36 @@ async def run_server():
 
         server.listen(0)
         client, addr = await loop.sock_accept(server)
-        loop.create_task(handle_client(client, addr))
+        client = Client(client, addr)
+        loop.create_task(handle_client(client))
 
-async def handle_client(client, addr):
+async def handle_client(client):
 
     loop = asyncio.get_event_loop()
+    end = False
 
     while True:
 
         msg = Message()
-        await msg.read(client, loop)
+        await msg.read(client.client, loop)
 
-        if msg.type == 'start': response = await start_game(addr)
-        elif msg.type == 'guess': response = await handle_guess(addr, msg.content)
-        elif msg.type == 'end': response = await end_game(addr)
+        if msg.type == 'start': response = await start_game(client)
+        elif msg.type == 'guess': response = await handle_guess(client, msg.content)
+        elif msg.type == 'lost': response = await show_ans(client)
+        elif msg.type == 'end':
+            await end_game(client)
+            end = True
         else:
             print("Error!")
             sys.exit(1)
+        if end:
+            print(f"Connection with {client.address} closed!")
+            break
         print(response.content)
-        await response.send(client, loop)
-        if msg.type == 'end': break
+        await response.send(client.client, loop)
 
-    client.close()
 
-answer = dict()
+AddrToClient = {}
 
 word_file = open("wordlist.txt")
 words = word_file.read().splitlines()
@@ -126,6 +157,5 @@ words = word_file.read().splitlines()
 answer_file = open("answerlist.txt")
 answers = answer_file.read().splitlines()
 
-print(answers)
 
 asyncio.run(run_server())
