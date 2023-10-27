@@ -80,7 +80,7 @@ async def run_server():
 
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
-    HOST = socket.AF_INET
+    HOST = "172.15.5.172"
     PORT = 8000
 
     server.bind((HOST, PORT))
