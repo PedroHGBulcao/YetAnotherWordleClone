@@ -38,34 +38,38 @@ class Message:
     async def send(self, client, loop):
         await loop.sock_sendall(client, self.json_size.to_bytes(2, "big"))
         await loop.sock_sendall(client, self.header)
-        await loop.sock_sendall(client, self.content)
+        await loop.sock_sendall(client, self.encoded_content)
 
 
 async def handle_guess(addr, guess):
     ans = answer[addr]
     msg = Message()
     guess = guess.lower()
-    if (len(ans) != 5) or not (guess.isalpha()):
+    print(guess)
+    if (len(ans) != 5) or not (guess.isalpha()) or not (guess in words):
         msg.write("invalid_guess", "")
         return msg
-    mask = "0" * 5
+    mask = ["0"] *5
     cnt_ans, cnt_guess = dict(), dict()
     for i in range(5):
-        cnt_ans[i] = cnt_ans.get(i, 0) + 1
+        cnt_ans[ans[i]] = cnt_ans.get(ans[i], 0) + 1
     for i in range(5):
         if ans[i] == guess[i]:
             mask[i] = "1"
-            cnt_guess[i] = cnt_guess.get(i,0) + 1
+            cnt_guess[guess[i]] = cnt_guess.get(guess[i], 0) + 1
     for i in range(5):
-        if cnt_guess.get(cnt_guess[i], 0) < cnt_ans.get(cnt_guess[i], 0):
-            mask[i] = "2"
-            cnt_guess[i] = cnt_guess.get(i, 0) + 1
+        if not mask[i] == "1":
+            if cnt_guess.get(guess[i], 0) < cnt_ans.get(guess[i], 0):
+                mask[i] = "2"
+            cnt_guess[guess[i]] = cnt_guess.get(guess[i], 0) + 1
+    mask = "".join(mask)
     msg.write("valid_guess", mask)
     return msg
 
 
 async def start_game(addr):
     answer[addr] = random.choice(answers)
+    print(answer[addr])
     msg = Message()
     msg.write("conn_acc", "")
     return msg
@@ -108,7 +112,7 @@ async def handle_client(client, addr):
         else:
             print("Error!")
             sys.exit(1)
-
+        print(response.content)
         await response.send(client, loop)
         if msg.type == 'end': break
 
