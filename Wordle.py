@@ -5,6 +5,7 @@ import json
 import sys
 import tkinter as tk
 from tkinter import ttk
+import threading
 
 class Client:
 
@@ -24,6 +25,7 @@ class Client:
 
     def close(self):
         AddrToClient.pop(self.address)
+        disconnect_tuple(self.client)
         self.client.close()
 
 class Message:
@@ -86,22 +88,26 @@ async def handle_guess(client, guess):
             cnt_guess[guess[i]] = cnt_guess.get(guess[i], 0) + 1
     mask = "".join(mask) + str(len(client.guesses))
     msg.write("valid_guess", mask)
+    add_tuple(client)
     return msg
 
 
 async def start_game(client):
     client.gen_word()
     print(client.answer)
+    add_tuple(client)
     msg = Message()
     msg.write("conn_acc", "")
     return msg
 
 async def end_game(client):
+    clear_tuple(client)
     client.close()
 
 async def show_ans(client):
     msg = Message()
     msg.write("lost", client.answer)
+    clear_tuple(client)
     return msg
 
 
@@ -109,7 +115,7 @@ async def run_server():
 
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
-    HOST = "172.15.5.172"
+    HOST = "localhost"
     PORT = 8000
 
     server.bind((HOST, PORT))
@@ -119,8 +125,8 @@ async def run_server():
     while True:
 
         server.listen(0)
-        client, addr = await loop.sock_accept(server)
-        client = Client(client, addr)
+        cliente, addr = await loop.sock_accept(server)
+        client = Client(cliente, addr)
         loop.create_task(handle_client(client))
 
 async def handle_client(client):
@@ -143,11 +149,61 @@ async def handle_client(client):
             print("Error!")
             sys.exit(1)
         if end:
-            print(f"Connection with {client.address} closed!")
+            print(f"Connection with address {client.address} closed!")
             break
         print(response.content)
         await response.send(client.client, loop)
 
+def main_thread():
+    asyncio.run(run_server())
+
+# Function to add a tuple to the table
+def add_tuple(client):
+    AddrToClient[client.address[0]] = client
+    values = [str(client.address[0]), len(client.guesses), client.answer]  # Get values from entry widgets
+    item_to_update = None
+
+    for item in tree.get_children():
+        if tree.item(item, 'values')[0] == values[0]:
+            item_to_update = item
+            break
+
+    if item_to_update:
+        tree.item(item_to_update, values=values)  # Update the existing tuple
+    else:
+        tree.insert('', 'end', values=values)  # Insert the values into the table
+
+
+# Function to remove selected tuple from the table
+def remove_tuple():
+    selected_item = tree.selection()  # Get the selected item(s)
+    for item in selected_item:
+        AddrToClient[tree.item(item,'values')[0]].client.send_disconnect
+        tree.delete(item)  # Delete the selected item
+    
+# Function to set tuple waiting for start 
+def clear_tuple(client):
+    for item in tree.get_children():
+        if tree.item(item,'values')[0] == client.address:
+            tree.item(item, values=[client.address,0,'waiting for game start'])  
+
+# Function to be called when the client is disconnected
+def disconnect_tuple(client):
+    tree.delete(client.address)
+
+# Create the main window
+root = tk.Tk()
+root.title("Yet Another Wordle Controller")
+
+tree = ttk.Treeview(root, columns=("Client", "Number of Guesses", "Word"), show="headings")
+tree.heading("Client", text="Client")
+tree.heading("Number of Guesses", text="Number of Guesses")
+tree.heading("Word", text="Word")
+
+tree.pack()
+
+remove_button = tk.Button(root, text="Disconnect client", command=remove_tuple)
+remove_button.pack()
 
 AddrToClient = {}
 
@@ -157,5 +213,9 @@ words = word_file.read().splitlines()
 answer_file = open("answerlist.txt")
 answers = answer_file.read().splitlines()
 
+#asyncio.run(run_server())
 
-asyncio.run(run_server())
+t1 = threading.Thread(target=main_thread,args=[])
+t1.start()
+
+root.mainloop()
