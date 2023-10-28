@@ -160,7 +160,7 @@ def main_thread():
 # Function to add a tuple to the table
 def add_tuple(client):
     AddrToClient[client.address[0]] = client
-    values = [str(client.address[0]), len(client.guesses), client.answer]  # Get values from entry widgets
+    values = [str(client.address[0]), len(client.guesses),client.guesses, client.answer]  # Get values from entry widgets
     item_to_update = None
 
     for item in tree.get_children():
@@ -195,15 +195,17 @@ def disconnect_tuple(client):
 root = tk.Tk()
 root.title("Yet Another Wordle Controller")
 
-tree = ttk.Treeview(root, columns=("Client", "Number of Guesses", "Word"), show="headings")
+tree = ttk.Treeview(root, columns=("Client", "Number of Guesses", "Guesses", "Word"), show="headings")
 tree.heading("Client", text="Client")
 tree.heading("Number of Guesses", text="Number of Guesses")
+tree.heading("Guesses", text = "Guesses")
 tree.heading("Word", text="Word")
 
 tree.pack()
 
 remove_button = tk.Button(root, text="Disconnect client", command=remove_tuple)
 remove_button.pack()
+
 
 AddrToClient = {}
 
